@@ -211,7 +211,7 @@ console.log(arr);
 
 ## 原型和原型链
 每个函数都有一个prototype，prototype是个对象也就是原型。
-每一个构造函数 new出来的实例都有一个_proto_指向构造函数的原型prototype，实例拥有构造函数的方法与属性。
+每一个构造函数 new出来的实例都有一个隐式原型_proto_指向构造函数的显示原型prototype，实例拥有构造函数的方法与属性。
 比如 一个由构造函数new出来的实例，它的_proto_指向构造函数的原型，构造函数的_proto_指向Function的原型，Function的_proto_指向Object的原型，由此构成了一条链路，叫原型链。
 
 ## 继承
@@ -256,12 +256,15 @@ js在执行过程中会先执行同步的代码（script）中的，然后在执
 
 ## cookie localstorage sessionstorage区别
 大小： cookie是每条4kb超出就会截断 cookie同域名最多20条 localstorage和sessionstorage是5MB
-生命周期：cookie可以设置过期时间，如果没有设置过期时间，就在页面关闭就过期。localstorage可以一直存储在浏览器，不会过期，需要手动删除，或者清理缓存。sessionstorage仅仅存在会话阶段，关闭页面就会消失。
-与服务端交互：cookie可以跟随请求发送到服务端，localstorage和sessionstorage不会自动随着请求发送，需要手动获取塞入到请求体中。
+生命周期： cookie可以设置过期时间，如果没有设置过期时间，就在页面关闭就过期。localstorage可以一直存储在浏览器，不会过期，需要手动删除，或者清理缓存。sessionstorage仅仅存在会话阶段，关闭页面就会消失。
+与服务端交互： cookie可以跟随请求发送到服务端，localstorage和sessionstorage不会自动随着请求发送，需要手动获取塞入到请求体中。
 属性： cookie有name、value、domain、path、secure、http-only参数，只有在同源下才会有对应的cookie，secure安全验证只有在ssl链接才会发送到服务端，http-only js是否可以操作当前的cookie。localstorage和sessionstorage只有name value
 使用场景： cookie一般存储用户身份的加密token，localstorage一般用来处理持久性信息的存储，比如某个功能弹窗是否弹出过。sessionstorage可以用来存储当前页面某个按钮的点击次数。
 
 ## script defer async区别
+在浏览器解析html文档的时候碰到script标签就会停止解析dom加载script并执行，会阻塞dom的解析。
+script defer 会异步下载脚本，在dom解析完成之后按照顺序加载脚本js，相当于按顺序写在body下面
+script async 会异步下载脚本，但在下载完会马上执行，执行的时候阻塞dom解析，多个async script会谁先下载完就先加载谁，适用于彼此没有依赖的脚本。
 
 ## 0.1 + 0.2 === 0.3 ？
 答案是false，为什么？
