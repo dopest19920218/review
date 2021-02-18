@@ -276,18 +276,485 @@ script async 会异步下载脚本，但在下载完会马上执行，执行的�
 所以我们换一种思路，用还是获取最大小数点位数，然后变成整数不用*，用string的replace然后Number变成整数，剩下都是一样的操作，就可以解决了。
 
 ## 手写个promise
+```
+function MyPromise(callback) {
+  this.status = 'pending'
+  this.value = undefined
+  this.resolveEvents = []
+  this.rejectEvents = []
+  
+  function resolve(value) {
+    if (this.status === 'pending') {
+      this.status = 'fullfilled'
+      this.value = value
+      this.resolveEvents.forEach(cb => {
+        cb(value)
+      })
+    }
+  }
 
-## 二叉树
+  function reject(value) {
+    if (this.status === 'pending') {
+      this.status = 'rejected'
+      this.value = value
+      this.rejectEvents.forEach(cb => {
+        cb(value)
+      })
+    }
+  }
 
-## 链表
+  try {
+    callback(resolve, reject)
+  } catch(e) {
+    console.error(e)
+  }
+}
+
+MyPromise.prototype.then = function (resolveHandler, rejectHandler) {
+  if (this.status === 'fullfilled') {
+    resolveHandler(this.value)
+  } else if (this.status === 'rejected') {
+    rejectHandler(this.value)
+  } else {
+    this.resolveEvents.push(resolveHandler)
+    this.rejectEvents.push(rejectHandler)
+  }
+}
+```
+
+## 深拷贝和浅拷贝
+拷贝主要这个对象里面的每一个引用数据类型的指针要换成一个新的指针，
+
+浅拷贝只能拷贝基本数据类型，引用数据类型的指针还是没有变，新对象和原对象的引用数据类型是===的, 所以你改引用数据类型里的值，新老对象会同时修改。
+
+浅拷贝的方式： Object.assign() ... array.concat() array.slice()
+
+深拷贝 
+JSON.parse(JSON.stringify())可以进行深拷贝，但是如果对象理由function拷贝完就会变成null
+
+实现一个深拷贝（遍历）
+```
+function deepClone(obj) {
+  if (typeof obj !== 'object') return obj
+  // 用构造函数来生成一个新的对象
+  const newObj = new obj.constructor()
+  for (let name in obj) {
+    if (obj.hasOwnProperty(name)) {
+      newObj[name] = deepClone(obj[name])
+    }
+  }
+  return newObj
+}
+```
+
+## hasOwnProperty 和 for (var name in obj)的区别
+hasOwnProperty是获取不到实例继承下来的属性 Object.prototype.hasOwnProperty(key) 返回true false
+name in obj 是遍历obj的所有属性，包含继承下来的属性
+
+## Object.defineProperty
+Object.defineProperty(obj, propName, desc)
+三个参数 第一个对象宿主 第二个属性名称 第三个描述标识符
+```
+var count = 1
+var obj = {}
+
+Object.defineProperty(obj, 'a', {
+  value: 1,
+  writable: true,
+  configurable: true,
+  enumerable: true
+})
+
+console.log(obj.a) // 1
+```
+value是标识属性的值
+writable是标识属性可不可以通过属性赋值的形式修改（obj.a = 2）
+configurable是标识属性是否可以被删除，是否可以重新定义标识内容
+enumerable是标识属性是否可以遍历（在 var ... in ... 和 Object.keys()）可以获取
+
+```
+var count = 1
+var obj = {}
+
+Object.defineProperty(obj, 'a', {
+  get() {
+    return count
+  }
+  set(value) {
+    count = value
+  }
+})
+
+obj.a = 2
+console.log(count) // 2
+console.log(obj.a) // 2
+```
+可以定义getter和setter来标识对象属性值发生变化时的回调，desc里面get、set和value不可以同时出现
+
+## for...in Object.keys() Object.getOwnPropertyNames() 有什么区别
+for...in可以把所有自身和继承中的可枚举的属性都拿到
+Object.keys() 可以把自身所有可枚举都拿到
+Object.getOwnPropertyNames() 可以把自身的所有属性（包括可枚举和不可枚举）都拿到
+
+## 事件观察者模式
+```
+class Sub{
+  constructor() {
+    this.observerList = []
+  }
+
+  add(observer) {
+    if (!this.observerList.includes(observer)) {
+      this.observerList.push(observer)
+    }
+  }
+
+  remove(observer) {
+    const target = this.observerList.findIndex(observer)
+    if (target > -1) {
+      this.observerList.splice(target, target + 1)
+    }
+  }
+
+  notify() {
+    this.observerList.forEach(item => {
+      item.update()
+    })
+  }
+
+}
+
+class Observer{
+  constructor(name) {
+    this.name = name
+  }
+
+  update() {
+    console.log(this.name)
+  }
+}
+const observer1 = new Observer('a')
+const observer2 = new Observer('b')
+
+const watcher = new Sub()
+
+watcher.add(observer1)
+watcher.add(observer2)
+
+watcher.notify()
+
+```
+
+## 事件订阅发布
+是进阶版的观察者模式，因为观察者模式有局限性，比如只能固定调用update方法
+```
+class EventBus{
+  constructor() {
+    this.eventList = {}
+  }
+
+  on = function(eventType, callback) {
+    const list = this.eventList[eventType] ? [...this.eventList[eventType]] : []
+    if (!list.includes(callback)) {
+      list.push(callback)
+    }
+    this.eventList[eventType] = list
+    return this
+  }
+
+  emit(eventType, ...data) {
+    const eventList = this.eventList[eventType]
+    eventList.forEach(cb => {
+      cb(...data)
+    })
+    return this
+  }
+
+  clear(eventType) {
+    this.eventList[eventType] = []
+    return this
+  }
+
+  off(eventType, callback) {
+    const eventList = this.eventList[eventType]
+    const targetIndex = eventList.findIndex(cb => cb === callback)
+    if (targetIndex > -1) {
+      eventList.splice(targetIndex, targetIndex + 1)
+    }
+    return this
+  }
+}
+```
 
 ## es6
 
-## 深拷贝和浅拷贝
+### const let var的区别
+1. 都是定义变量的方式
+2. const 表示常量 不可重新赋值， let、var可以重新赋值
+3. const、let会形成块级作用域，暂时性死区，在变量定义前，获取变量会报错 x is not defined， var在定义前获取是undefined
 
-## 事件订阅发布
+## Set、Map、WeakSet、WeakMap区别
+
+### Proxy
+vue 2.0 用的是 Object.defineProperty来做的数据劫持
+vue 3.0 用的是 Proxy来做的数据劫持
+
+为什么要用Proxy来做？
+Object.defineProperty无法感知到数组的某些操作，比如arr[0] = 1; arr.push(1)
+在实际使用中你需要用Vue提供的set方法来重新给data中的arr赋值
+用Proxy就可以感知到这些数组的变化
+用法 new Proxy(target, options)
+
+用Proxy做一个wacther
+```
+const data = {
+  arr: [1, 2, 3]
+}
+const watcher = {}
+
+Object.defineProperty(watcher, 'arr', {
+  value: new Proxy(data.arr, {
+    set(target, property, val) {
+      console.log('setting arr')
+      return Reflect.set(target, property, val)
+    }
+  })
+})
+
+watcher.arr[0] = 0
+watcher.arr.push(4)
+watcher.arr.push(5)
+
+console.log(data.arr) // [0, 2, 3, 4, 5]
+console.log(watcher.arr) // [0, 2, 3, 4, 5]
+console.log(watcher.arr === data.arr) // false
+```
+共打印5次setting arr 因为push的时候还有一次set length的值
+
+用Object.defineProperty(obj, propertyName, options)做一个watcher
+```
+const data = {
+  arr: [1, 2, 3]
+}
+const watcher = {}
+
+Object.defineProperty(watcher, 'arr', {
+  get() {
+    return data.arr
+  },
+  set(val) {
+    console.log(val, '////')
+    data.arr = val
+  }
+})
+
+watcher.arr[0] = 0
+watcher.arr.push(4)
+watcher.arr.push(5)
+console.log(watcher.arr) // [0, 2, 3, 4, 5]
+watcher.arr = [1, 6, 7]
+console.log(watcher.arr) // [1， 6， 7]
+```
+只会打印一次[1, 6, 7] ////
+符合我们的预期，push方法和下标赋值都不会触发set方法的回调
+
+**所以用Proxy来做数据劫持的wacther更可靠，更方便**
+
+### Reflect
+用于方法的劫持，Reflect是内置函数，没有constructor，不能new。
+符合函数调用的思维，比如 'name' in obj来判断obj是否有某个属性，可以用Reflect.has(obj, 'name')也会返回Boolean
+拥有的方法：
+1. has Reflect.has(obj, propertyName) 判断obj有无propertyName这个属性
+2. set Reflect.set(obj, propertyName, val) 相当于obj[propertyName] = val，会返回Boolean，来表示是否成功赋值
+3. ownkeys Reflect.ownKeys(obj) 相当于Obj.getOwnPropertyNames()会把自身所有属性包括不可枚举都获取
+4. deleteProperty Reflect.deleteProperty(obj, propertyName) 相当于 delete obj[propertyName]
+5. defineProperty Reflect.defineProperty(obj, propertyName, attr) 相当于 Object.defineProperty(obj, propertyName, arr)
+and so on....
+<https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Reflect>
+
+## IntersectionObserver是做什么的
+IntersectionObserver是检测元素和视窗的碰撞关系，可以获取元素是否在视窗内。
+可以不使用scroll事件，然后获取元素的位置信息来判断，获取元素的位置信息是非常消耗性能的。
+
+可以创建一个observer，接受两个参数 第一个是callback， 第二个是options
+
+**实际使用场景： 图片懒加载，无限滚动加载数据（observer绑定最底下的loading块），广告的曝光埋点**
+
+图片懒加载
+```
+<img data-src="http://www.a.com/b.jpg" class="img-lazy-load">
+
+const imgList = document.querySelectorAll('.img-lazy-load')
+
+const observer = new InsectionObserver((nodes) => {
+  nodes.forEach(item => {
+    // item是每个图片
+    // 自定义做什么事
+    if (item.isIntersecting) {
+      // 在视窗内
+      item.target.src = item.target.dataset.src
+    }
+  })
+})
+observer.observe(Array.from(imgList))
+```
 
 ## csrf攻击 xss攻击
+xss 是指跨站脚本攻击 比如有一段脚本<\script>标签，后端存储后，返回前端 前端innerHtml = 这段获取的脚本，就会马上执行，达到恶意的xss攻击，现在服务端都有很成熟的防xss的脚本。
+
+csrf 是指伪造用户身份的攻击，比如登陆正常登陆网站种了userid的明文cookie，然后就可能被篡改成各种身份，来刷接口获取信息或者操作重要的行为比如转账等，一般是种的是加密的token，这样就加大了恶意篡改的难度。想要完全杜绝是不可能的，只能是加大恶意操作的成本，使他们获得的和付出的不成正比。
+
+## 手写个new
+```
+function MyNew(constructor, ...params) {
+  const obj = Object.create({}) // 创建一个新的对象
+  obj.__proto__ = constructor.protoType // 将新对象的隐式原型指向构造函数的protoType
+  const result = constructor.apply(obj, params) // 获取构造函数执行的结构，并把属性继承和改变this指向到obj
+  return typeof result === 'object' ? result : obj // 如果返回是object就return object如果不是返回新的对象
+}
+```
+
+## 二叉树
+<https://juejin.cn/post/6844904105559719944>
+
+### 什么是二叉树
+二叉树有一个根节点，每个节点可以有左右两个节点，左节点的值小于父节点，右节点的值大于父节点，没有子节点的节点叫做叶子节点
+
+#### 创建二叉树
+```
+function BST() {
+  this.root = null
+  this.insert = insert
+}
+
+function Node(val, left = null, right = null) {
+  this.value = val
+  this.left = left
+  this.right = right
+}
+
+function insert(val) {
+  const node = new Node(val)
+  if (this.root === null) {
+    this.root = node
+  } else {
+    let parentNode = this.root
+    while (true) {
+      if (val < parentNode.value) {
+        if (parentNode.left === null) {
+          parentNode.left = node
+          break;
+        } else {
+          parentNode = parentNode.left
+        }
+      } else {
+        if (parentNode.right === null) {
+          parentNode.right = node
+          break;
+        } else {
+          parentNode = parentNode.right
+        }
+      }
+    }
+  }
+}
+const tree = new BST()
+
+tree.insert(50)
+tree.insert(10)
+tree.insert(70)
+tree.insert(5)
+tree.insert(15)
+tree.insert(60)
+tree.insert(80)
+```
+
+### 先序遍历
+```
+function preOrder(node) {
+  const result = []
+  if (node !== null) {
+    result.push(node.value)
+    Array.prototype.push(result, preOrder(node.left))
+    Array.prototype.push(result, preOrder(node.right))
+  }
+  return result
+}
+
+console.log(preOrder(tree.root)) // 50, 10, 5, 15, 70, 60, 80
+```
+
+### 中序遍历
+```
+function middleOrder(node) {
+  const result = []
+  if (node !== null) {
+    Array.prototype.push(result, middleOrder(node.left))
+    result.push(node.value)
+    Array.prototype.push(result, middleOrder(node.right))
+  }
+  return result
+}
+
+console.log(middleOrder(tree.root)) // 5, 10, 15, 50, 60, 70, 80
+```
+
+### 后序遍历
+```
+function postOrder(node) {
+  const result = []
+  if (node !== null) {
+    Array.prototype.push(result, postOrder(node.left))
+    Array.prototype.push(result, postOrder(node.right))
+    result.push(node.value)
+  }
+  return result
+}
+
+console.log(postOrder(tree.root)) // 5, 15, 10, 60, 80, 70, 50
+```
+
+### 左右节点翻转
+```
+function reverseTree(node) {
+  if (node !== null) {
+    reverseTree(node.left)
+    reverseTree(node.right)
+    const cache = node.left
+    node.left = node.right
+    node.right = cache
+  }
+}
+```
+
+### 判断二叉树是否为对称二叉树
+```
+function compareTree(left, right) {
+  if (node.left === null && node.right === null) return true
+  if (node.left === null || node.right === null) return false
+  return left.value && right.value && compare(left.left, right.right) && compare(left.right, right.left) 
+}
+console.log(compareTree(tree.root))
+```
+
+### 求任意二叉树根节点到叶子路径所有数字之和
+```
+function calculateValue(root) {
+  let result = 0
+  function getValue(node) {
+    if (node !== null) {
+      result += node.value
+      getValue(node.left)
+      getValue(node.right)
+    }
+  }
+  getValue(root)
+  return result
+}
+console.log(calculateValue(tree.root))
+```
+
+## 链表
 
 ## react、vue
 
