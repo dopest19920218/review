@@ -347,6 +347,36 @@ function deepClone(obj) {
 }
 ```
 
+## isEqual
+```
+function isEqual(obj1, obj2) {
+  // 无论什么类型
+  if (obj1 === obj2) {
+    return true
+  }
+
+  // 如果是 数组或者json 或者 Date这种对象
+  if (typeof obj1 === 'object' && typeof obj2 === 'object') {
+    const obj1Keys = Object.keys(obj1)
+    const obj2Keys = Object.keys(obj2)
+
+    if (obj1Keys.length !== obj2Keys.length) return false
+
+    for (let name in obj1) {
+      if (obj1.hasOwnProperty(name)) {
+        if (!isEqual(obj1[name], obj2[name])) {
+          return false
+        }
+      }
+    }
+    
+    return true
+  }
+
+  return false
+}
+```
+
 ## hasOwnProperty 和 for (var name in obj)的区别
 hasOwnProperty是获取不到实例继承下来的属性 Object.prototype.hasOwnProperty(key) 返回true false
 name in obj 是遍历obj的所有属性，包含继承下来的属性
@@ -494,6 +524,18 @@ class EventBus{
 3. const、let会形成块级作用域，暂时性死区，在变量定义前，获取变量会报错 x is not defined， var在定义前获取是undefined
 
 ## Set、Map、WeakSet、WeakMap区别
+都是一个构造函数，可以用new一个实例
+1. Set
+方法和属性： size获取成员个数，add增加一个成员，delete删除一个成员，has判断某个成员是否在Set里面，clear清空成员，例：const a = new Set(); a.add(1).add(2); console.log(a.size())
+2. WeakSet
+WeakSet的成员只能是对象，其次WeakSet是弱引用，垃圾回收不考虑WeakSet中的对象引用，也就是说里面的成员随时有可能消失，所以不能遍历，没有size方法。
+拥有的方法和属性： add、delete、has
+3. Map
+拥有的方法和属性：set，get，has，delete，clear，size，遍历的方法keys，values，entries，forEach
+本质是一组键值对[[1,2],['name', 'tuan']]
+4. WeakMap
+key必须为对象，并且跟WeakSet一样对内部成员都是弱引用，不参与垃圾回收，所以没有遍历的方法和size，
+最常用的就是保存dom的对象
 
 ### Proxy
 vue 2.0 用的是 Object.defineProperty来做的数据劫持
@@ -758,4 +800,48 @@ console.log(calculateValue(tree.root))
 
 ## react、vue
 
+### 组件通信
+1. 父 => 子 props
+2. 子 => 父 父级将方法作为props传入子组件，子组件调用并传值给函数 vue可以通过:value.sync 子组件$emit('update:value', 1)
+3. 兄弟组件 可以通过单一数据流的方式 通过父组件转发
+4. 多层级组件 react 可以通过context上下文来通信
+5. 通用解决 复杂的组件通信可以使用 事件发布订阅着模式通信
+
+### 生命周期
+1. vue beforeCreate created beforeMount mounted beforeUpdate updated beforeDestory destoryed
+2. react componentWillMount componentDidMount componentWillReceiveProps shouldComponentUpdate componentWillUpdate componentDidUpdate componentWillUnmount
+
+### 虚拟dom
+虚拟dom就是有js组成的一个树形结构，每个节点有一些属性来描述这个节点的信息，如：className，children等，根据创建的虚拟dom树来反应真实的dom，虚拟dom树通过diff算法减少不必要的更新，可以提升渲染的性能，每次setState更新都会比较新老虚拟dom树，然后把差异应用到真实构建的dom上。
+
+### diff算法
+根据新老虚拟dom树来比较，从而确定节点的增删改
+1. 只比较同级元素
+2. 列表有key属性，方便比较
+3. 只会匹配相同class（组件名）的组件
+4. setState会进行合并一起调用，同一个值的修改，后面的覆盖前面的
+5. 可以通过useMemo和shouldComponentUpdate来显示判定组件是否需要更新
+
+尽可能不使用index下标来做key，例如[0,1,2,3]数据改成[3,2,1,0]，这时候两次虚拟dom key都为0的时候 他们的内容是不同的一个是0 一个是3，这样就是发生重新渲染，而如果用id0，id1，id2，id3来做的话 那顺序仅仅是变成了 id3，id2，id1，id0，这个时候diff仅仅是节点的移动，而不会重新渲染
+
+### setState是异步还是同步
+有时候异步有时候同步，在setTimeout和原生方法里使用setState是同步也就是立即生效的，否则会进行合并一起调用也就是异步调用
+
+### Vue响应式原理
+
+init => Observer(data) => 遍历data => defineReactive把值变成响应式的，并且递归observe当前的值 => Object.defineProperty get方法进行依赖收集Dep set方法进行依赖notify（观察者模式） => 依赖就是Watcher，Dep notify会触发每个Watcher的update方法
+
+收集依赖时会有一个全局变量Dep.target指向当前的Watcher，然后放入当前的Dep实例中
+在渲染的过程，参数都会触发get方法，通过这种方式搜集Watcher
+
+Watcher分为computed-watcher user-wachter render-watcher
+computed-watcher 就是 执行一下对应的computed的方法 就会触发 内部data的get方法完成收集依赖
+user-watcher 就是 在updateComponent的过程中触发内部data的get方法完成收集依赖
+
+### nextTick原理
+利用任务队列来实现nextTcik
+1. 先用Promise
+2. 利用mutationObeserver
+3. 利用setImmediate
+4. settimeout 0
 
